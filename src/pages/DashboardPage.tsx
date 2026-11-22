@@ -40,6 +40,7 @@ export const DashboardPage: React.FC = () => {
   const {
     recordsTotals,
     activities,
+    mlPredictions,
     recommendations,
     toggleRecommendation,
     navigate,
@@ -82,10 +83,8 @@ export const DashboardPage: React.FC = () => {
     trendRange === '7days' ? trend7Days : trendRange === '30days' ? trend30Days : trend3Months;
 
   // Forecast cards remain empty until a user has six recorded activity samples.
-  const hasEnoughHistory = activities.length >= 6;
-  const sparklineData = hasEnoughHistory
-    ? [{ v: 34 }, { v: 31 }, { v: 29 }, { v: 28 }, { v: 27.5 }, { v: 26.4 }]
-    : [];
+  const hasEnoughHistory = mlPredictions.length > 0;
+  const sparklineData = mlPredictions.map((prediction) => ({ v: prediction.predictedCo2Kg }));
 
   // Donut data
   const donutData = [
@@ -455,7 +454,7 @@ export const DashboardPage: React.FC = () => {
                   Predicted Next Month
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                  {hasEnoughHistory ? 'Random Forest' : 'Collecting history'}
+                  {hasEnoughHistory ? 'Activity trend' : 'Collecting history'}
                 </span>
               </div>
 
@@ -464,10 +463,10 @@ export const DashboardPage: React.FC = () => {
                   {hasEnoughHistory ? (
                     <>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-3xl font-extrabold text-white font-sans">26.4</span>
+                        <span className="text-3xl font-extrabold text-white font-sans">{mlPredictions[0].predictedCo2Kg.toFixed(1)}</span>
                         <span className="text-xs font-semibold text-emerald-300">kg CO₂e</span>
                       </div>
-                      <p className="text-[11px] text-emerald-200/80 mt-1">Forecast based on recorded activity history.</p>
+                      <p className="text-[11px] text-emerald-200/80 mt-1">Forecast from ${mlPredictions.length} monthly trend points.</p>
                     </>
                   ) : (
                     <p className="max-w-[220px] text-[11px] text-emerald-100/90">
