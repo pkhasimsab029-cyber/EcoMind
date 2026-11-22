@@ -153,6 +153,7 @@ app.get('/api/auth/callback', async (req, res, next) => {
       await new Promise((resolve, reject) => req.session.regenerate((err) => err ? reject(err) : resolve()));
       req.session.userId = data.id;
       req.session.user = { id: data.id, name: data.name || data.email, email: data.email, avatarUrl: data.picture || undefined };
+      setConsent.run(data.id, 'google_sign_in', 'openid email profile', 'granted');
       return req.session.save((err) => err ? next(err) : res.redirect('/#/dashboard'));
     }
 
