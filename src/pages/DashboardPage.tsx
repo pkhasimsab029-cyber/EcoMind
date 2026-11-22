@@ -81,10 +81,11 @@ export const DashboardPage: React.FC = () => {
   const currentTrendData =
     trendRange === '7days' ? trend7Days : trendRange === '30days' ? trend30Days : trend3Months;
 
-  // Mini sparkline data for "Predicted Next Month" card
-  const sparklineData = [
-    { v: 34 }, { v: 31 }, { v: 29 }, { v: 28 }, { v: 27.5 }, { v: 26.4 }
-  ];
+  // Forecast cards remain empty until a user has six recorded activity samples.
+  const hasEnoughHistory = activities.length >= 6;
+  const sparklineData = hasEnoughHistory
+    ? [{ v: 34 }, { v: 31 }, { v: 29 }, { v: 28 }, { v: 27.5 }, { v: 26.4 }]
+    : [];
 
   // Donut data
   const donutData = [
@@ -454,19 +455,25 @@ export const DashboardPage: React.FC = () => {
                   Predicted Next Month
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                  Random Forest
+                  {hasEnoughHistory ? 'Random Forest' : 'Collecting history'}
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between">
                 <div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-3xl font-extrabold text-white font-sans">26.4</span>
-                    <span className="text-xs font-semibold text-emerald-300">kg CO₂e</span>
-                  </div>
-                  <p className="text-[11px] text-emerald-200/80 mt-1">
-                    On track to -8% reduction with applied actions
-                  </p>
+                  {hasEnoughHistory ? (
+                    <>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl font-extrabold text-white font-sans">26.4</span>
+                        <span className="text-xs font-semibold text-emerald-300">kg CO₂e</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-200/80 mt-1">Forecast based on recorded activity history.</p>
+                    </>
+                  ) : (
+                    <p className="max-w-[220px] text-[11px] text-emerald-100/90">
+                      Add activity measurements. A forecast appears after six records are available.
+                    </p>
+                  )}
                 </div>
 
                 {/* Mini Sparkline */}
