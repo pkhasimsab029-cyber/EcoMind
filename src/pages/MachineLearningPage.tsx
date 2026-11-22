@@ -38,22 +38,32 @@ import { useEco } from '../context/EcoContext';
 
 export const MachineLearningPage: React.FC = () => {
   const { mlPredictions, navigate, recordsTotals, activities } = useEco();
-  const hasEnoughHistory = activities.length >= 6;
+  const hasEnoughHistory = mlPredictions.length > 0;
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'model' | 'historical' | 'future'>('overview');
 
-  // Historical + Forecasted multi-month data for the main chart
+  // Build the chart from this user's recorded monthly activity and trend forecasts.
+  const monthlyHistory = new Map<string, number>();
+  for (const activity of activities) {
+    const month = activity.date.slice(0, 7);
+    monthlyHistory.set(month, (monthlyHistory.get(month) || 0) + activity.co2Kg);
+  }
   const timelineData = hasEnoughHistory ? [
-    { month: 'May', actual: 18.2, predicted: null, lower: null, upper: null },
-    { month: 'Jun', actual: 21.4, predicted: null, lower: null, upper: null },
-    { month: 'Jul', actual: 19.8, predicted: null, lower: null, upper: null },
-    { month: 'Aug', actual: 23.5, predicted: null, lower: null, upper: null },
-    { month: 'Sep', actual: 22.1, predicted: null, lower: null, upper: null },
-    { month: 'Oct (Now)', actual: 24.1, predicted: 24.1, lower: 22.8, upper: 25.4 },
-    { month: 'Nov (Pred)', actual: null, predicted: 26.4, lower: 24.1, upper: 28.7 },
-    { month: 'Dec (Pred)', actual: null, predicted: 29.8, lower: 26.5, upper: 33.1 },
-    { month: 'Jan (Pred)', actual: null, predicted: 24.2, lower: 21.8, upper: 26.9 },
+    ...[...monthlyHistory.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, actual]) => ({
+      month: new Date(`${month}-01T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+      actual,
+      predicted: null,
+      lower: null,
+      upper: null
+    })),
+    ...mlPredictions.map((prediction) => ({
+      month: prediction.month,
+      actual: null,
+      predicted: prediction.predictedCo2Kg,
+      lower: prediction.confidenceLower,
+      upper: prediction.confidenceUpper
+    }))
   ] : [];
 
   // Usage Breakdown Donut Data
@@ -75,7 +85,7 @@ export const MachineLearningPage: React.FC = () => {
   return (
     <AppLayout
       title="Machine Learning Prediction"
-      subtitle="Step 4: Supervised Random Forest regression forecasting future digital carbon footprint"
+      subtitle="Step 4: Forecast future emissions from your recorded monthly activity trend"
       step="Step 4"
       actions={
         <button
@@ -525,7 +535,7 @@ export const MachineLearningPage: React.FC = () => {
                       </h3>
                     </div>
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-200">
-                      Random Forest Regressor
+                      Linear Trend Regression
                     </span>
                   </div>
 
@@ -652,7 +662,7 @@ export const MachineLearningPage: React.FC = () => {
           <div className="eco-card p-6 bg-white border border-emerald-100 space-y-6 animate-in fade-in duration-200">
             <div>
               <h3 className="text-base font-bold text-slate-800">
-                Random Forest Regressor Specifications
+                Linear Trend Regression Specifications
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 Detailed hyperparameter configuration and feature importance weights.
@@ -737,7 +747,7 @@ export const MachineLearningPage: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-slate-800">Historical Monthly Carbon Records</h3>
               <p className="text-xs text-slate-500 mt-1">
-                6-month verified audit logs used to train the Random Forest predictive model.
+                6-month verified audit logs used to train the monthly activity trend.
               </p>
             </div>
 
