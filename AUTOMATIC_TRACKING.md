@@ -2,7 +2,7 @@
 
 EcoMind now has an optional server-side Google sign-in and Google account storage quota connector. Manual activity entry remains available. Google sign-in requests only `openid`, `email`, and `profile`; storage access is a separate opt-in and requests `drive.metadata.readonly`.
 
-Google does not provide ChatGPT, Gemini, Claude, Copilot, general network transfer, or device CPU/GPU usage through this integration. Those remain manual or require separate provider/device connectors. The current app's sample dashboard values are illustrative; use collected API measurements for real reporting.
+Google does not provide ChatGPT, Gemini, Claude, Copilot, general network transfer, or device CPU/GPU usage through this integration. Those remain manual or require separate provider/device connectors. The dashboard trend uses saved activity records. Forecasts are a simple monthly linear trend estimate and appear only after at least six records span two or more months; the current code does not train or validate a Random Forest model.
 
 ## Run locally
 
