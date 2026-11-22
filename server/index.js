@@ -91,6 +91,27 @@ const requireUser = (req, res, next) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Sign in required.' });
   next();
 };
+async function collectGoogleStorageMeasurement(userId) {
+  const row = db.prepare('SELECT encrypted_token FROM google_tokens WHERE user_id=?').get(userId);
+  if (!row) return null;
+  const oauth = oauthClient();
+  oauth.setCredentials(decrypt(row.encrypted_token));
+  const drive = google.drive({ version: 'v3', auth: oauth });
+  const { data } = await drive.about.get({ fields: 'storageQuota' });
+  const usedBytes = Number(data.storageQuota?.usage || 0);
+  const capacityBytes = data.storageQuota?.limit ? Number(data.storageQuota.limit) : null;
+  const measuredAt = new Date().toISOString();
+  const usedGb = usedBytes / (1024 ** 3);
+  const energyKwh = usedGb * factors.cloudKwhPerGbMonth;
+  const co2Kg = energyKwh * factors.gridKgPerKwh;
+  db.prepare(`INSERT INTO storage_measurements(user_id,provider,used_bytes,capacity_bytes,measured_at,energy_kwh,co2_kg,factor)
+    VALUES(?,?,?,?,?,?,?,?)`).run(userId, 'Google account storage quota', usedBytes, capacityBytes, measuredAt,
+    energyKwh, co2Kg, `${factors.cloudKwhPerGbMonth} kWh/GB/month × ${factors.gridKgPerKwh} kgCO2e/kWh`);
+  return { provider: 'Google account storage quota', usedBytes, capacityBytes, measuredAt,
+    method: 'API measurement', energyKwh, co2Kg,
+    note: 'Google reports account-wide storage quota. It may include Drive, Gmail, and Photos usage.' };
+}
+
 const setConsent = db.prepare(`INSERT INTO user_consent(user_id, feature, scope, status, updated_at)
   VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
   ON CONFLICT(user_id, feature) DO UPDATE SET scope=excluded.scope, status=excluded.status, updated_at=CURRENT_TIMESTAMP`);
@@ -143,6 +164,7 @@ app.get('/api/auth/callback', async (req, res, next) => {
       ON CONFLICT(user_id) DO UPDATE SET encrypted_token=excluded.encrypted_token,updated_at=CURRENT_TIMESTAMP`)
       .run(req.session.userId, encrypt(secureTokens));
     setConsent.run(req.session.userId, 'google_drive_storage', 'drive.metadata.readonly', 'granted');
+    try { await collectGoogleStorageMeasurement(req.session.userId); } catch (syncError) { console.error('Initial Google storage sync failed:', syncError.message); }
     return res.redirect('/#/profile?drive=connected');
   } catch (error) { next(error); }
 });
@@ -167,28 +189,15 @@ app.post('/api/google/drive/sync', requireUser, async (req, res, next) => {
   try {
     const row = db.prepare('SELECT encrypted_token FROM google_tokens WHERE user_id=?').get(req.session.userId);
     if (!row) return res.status(409).json({ error: 'Connect Google Drive storage access first.' });
-    const oauth = oauthClient();
-    oauth.setCredentials(decrypt(row.encrypted_token));
-    const drive = google.drive({ version: 'v3', auth: oauth });
-    const { data } = await drive.about.get({ fields: 'storageQuota' });
-    const usedBytes = Number(data.storageQuota?.usage || 0);
-    const capacityBytes = data.storageQuota?.limit ? Number(data.storageQuota.limit) : null;
-    const measuredAt = new Date().toISOString();
-    const usedGb = usedBytes / (1024 ** 3);
-    const energyKwh = usedGb * factors.cloudKwhPerGbMonth;
-    const co2Kg = energyKwh * factors.gridKgPerKwh;
-    db.prepare(`INSERT INTO storage_measurements(user_id,provider,used_bytes,capacity_bytes,measured_at,energy_kwh,co2_kg,factor)
-      VALUES(?,?,?,?,?,?,?,?)`).run(req.session.userId, 'Google account storage quota', usedBytes, capacityBytes, measuredAt,
-      energyKwh, co2Kg, `${factors.cloudKwhPerGbMonth} kWh/GB/month × ${factors.gridKgPerKwh} kgCO2e/kWh`);
+    const result = await collectGoogleStorageMeasurement(req.session.userId);
     setConsent.run(req.session.userId, 'google_drive_storage', 'drive.metadata.readonly', 'granted');
-    res.json({ provider: 'Google account storage quota', usedBytes, capacityBytes, measuredAt,
-      method: 'API measurement', energyKwh, co2Kg,
-      note: 'Google reports account-wide storage quota. It may include Drive, Gmail, and Photos usage.' });
+    res.json(result);
   } catch (error) {
     if (error.code === 401 || error.code === 403) return res.status(502).json({ error: 'Google Drive access expired or was denied. Reconnect this data source.' });
     next(error);
   }
 });
+
 app.get('/api/google/drive/history', requireUser, (req, res) => {
   const rows = db.prepare('SELECT provider,used_bytes,capacity_bytes,measured_at,energy_kwh,co2_kg,factor FROM storage_measurements WHERE user_id=? ORDER BY measured_at DESC LIMIT 180')
     .all(req.session.userId);
@@ -250,6 +259,15 @@ app.delete('/api/account', requireUser, async (req, res, next) => {
     });
   } catch (error) { next(error); }
 });
+
+// Refresh connected storage measurements daily while the API process is running.
+const dailyStorageSync = setInterval(() => {
+  const users = db.prepare('SELECT user_id FROM google_tokens').all();
+  for (const { user_id: userId } of users) {
+    collectGoogleStorageMeasurement(userId).catch((error) => console.error('Scheduled storage sync failed:', error.message));
+  }
+}, 24 * 60 * 60 * 1000);
+dailyStorageSync.unref();
 
 if (isProduction) {
   const distDir = path.resolve(__dirname, '../dist');
