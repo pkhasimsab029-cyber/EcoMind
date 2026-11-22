@@ -98,18 +98,18 @@ async function collectGoogleStorageMeasurement(userId) {
   oauth.setCredentials(decrypt(row.encrypted_token));
   const drive = google.drive({ version: 'v3', auth: oauth });
   const { data } = await drive.about.get({ fields: 'storageQuota' });
-  const usedBytes = Number(data.storageQuota?.usage || 0);
+  const usedBytes = Number(data.storageQuota?.usageInDrive || 0);
   const capacityBytes = data.storageQuota?.limit ? Number(data.storageQuota.limit) : null;
   const measuredAt = new Date().toISOString();
   const usedGb = usedBytes / (1024 ** 3);
   const energyKwh = usedGb * factors.cloudKwhPerGbMonth;
   const co2Kg = energyKwh * factors.gridKgPerKwh;
   db.prepare(`INSERT INTO storage_measurements(user_id,provider,used_bytes,capacity_bytes,measured_at,energy_kwh,co2_kg,factor)
-    VALUES(?,?,?,?,?,?,?,?)`).run(userId, 'Google account storage quota', usedBytes, capacityBytes, measuredAt,
+    VALUES(?,?,?,?,?,?,?,?)`).run(userId, 'Google Drive file usage', usedBytes, capacityBytes, measuredAt,
     energyKwh, co2Kg, `${factors.cloudKwhPerGbMonth} kWh/GB/month × ${factors.gridKgPerKwh} kgCO2e/kWh`);
-  return { provider: 'Google account storage quota', usedBytes, capacityBytes, measuredAt,
+  return { provider: 'Google Drive file usage', usedBytes, capacityBytes, measuredAt,
     method: 'API measurement', energyKwh, co2Kg,
-    note: 'Google reports account-wide storage quota. It may include Drive, Gmail, and Photos usage.' };
+    note: 'Google Drive usage is measured separately. The reported storage limit is shared across Google services and may be pooled for Workspace accounts.' };
 }
 
 const setConsent = db.prepare(`INSERT INTO user_consent(user_id, feature, scope, status, updated_at)
