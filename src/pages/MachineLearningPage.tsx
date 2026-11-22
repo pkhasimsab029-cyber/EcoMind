@@ -39,6 +39,10 @@ import { useEco } from '../context/EcoContext';
 export const MachineLearningPage: React.FC = () => {
   const { mlPredictions, navigate, recordsTotals, activities } = useEco();
   const hasEnoughHistory = mlPredictions.length > 0;
+  const nextMonthForecast = mlPredictions[0]?.predictedCo2Kg ?? 0;
+  const categoryForecast = (currentCo2: number) => recordsTotals.totalCo2 > 0
+    ? nextMonthForecast * currentCo2 / recordsTotals.totalCo2
+    : 0;
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'model' | 'historical' | 'future'>('overview');
@@ -182,13 +186,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-slate-800 font-sans">
-                    26.4
+                    {nextMonthForecast.toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-amber-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>+3.2% vs last month</span>
+                  <span>Estimated from recorded monthly trend</span>
                 </div>
               </div>
 
@@ -202,13 +206,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-purple-700 font-sans">
-                    7.4
+                    {categoryForecast(recordsTotals.aiCo2).toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-purple-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>+8.1% (High GenAI load)</span>
+                  <span>Estimated from your recorded activity mix</span>
                 </div>
               </div>
 
@@ -222,13 +226,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-blue-700 font-sans">
-                    5.6
+                    {categoryForecast(recordsTotals.cloudCo2).toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
                   <TrendingDown className="w-3.5 h-3.5" />
-                  <span>-2.4% (Tier optimization)</span>
+                  <span>Estimated from your recorded activity mix</span>
                 </div>
               </div>
 
@@ -242,13 +246,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-emerald-700 font-sans">
-                    8.2
+                    {categoryForecast(recordsTotals.transferCo2).toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-amber-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>+1.5% (Asset sync traffic)</span>
+                  <span>Estimated from your recorded activity mix</span>
                 </div>
               </div>
             </div>
@@ -266,7 +270,7 @@ export const MachineLearningPage: React.FC = () => {
                         <span>Historical vs Predicted Emissions (kg CO₂e)</span>
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Actual baseline (solid blue) compared with ML 95% confidence projection (dashed green).
+                        Monthly activity totals (solid blue) compared with a linear trend estimate (dashed green).
                       </p>
                     </div>
 
