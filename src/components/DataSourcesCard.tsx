@@ -17,7 +17,25 @@ export const DataSourcesCard: React.FC = () => {
     try {
       const response = await fetch('/api/google/drive/status', { credentials: 'same-origin' });
       if (!response.ok) { setStatus(null); return; }
-      setStatus(await response.json());
+      const current: DriveStatus = await response.json();
+      setStatus(current);
+      if (current.connected) {
+        const historyResponse = await fetch('/api/google/drive/history', { credentials: 'same-origin' });
+        if (historyResponse.ok) {
+          const history = await historyResponse.json();
+          const latest = history.measurements?.[0];
+          if (latest) setMeasurement({
+            provider: latest.provider,
+            usedBytes: Number(latest.used_bytes),
+            capacityBytes: latest.capacity_bytes == null ? null : Number(latest.capacity_bytes),
+            measuredAt: latest.measured_at,
+            method: 'API measurement',
+            energyKwh: Number(latest.energy_kwh),
+            co2Kg: Number(latest.co2_kg),
+            note: 'Google reports account-wide storage quota. It may include Drive, Gmail, and Photos usage.'
+          });
+        }
+      }
     } catch { setStatus(null); }
   }, []);
 
@@ -72,7 +90,7 @@ export const DataSourcesCard: React.FC = () => {
         <div className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 text-xs sm:grid-cols-3">
           <div><span className="text-slate-500">Google account storage used</span><p className="mt-1 font-bold text-slate-800">{formatGb(measurement.usedBytes)} GB</p></div>
           <div><span className="text-slate-500">Estimated energy / CO₂</span><p className="mt-1 font-bold text-slate-800">{measurement.energyKwh.toFixed(3)} kWh · {measurement.co2Kg.toFixed(3)} kg</p></div>
-          <div><span className="text-slate-500">Measured at</span><p className="mt-1 font-bold text-slate-800">{new Date(measurement.measuredAt).toLocaleString()}</p></div>
+          <div><span className="text-slate-500">Last synchronized</span><p className="mt-1 font-bold text-slate-800">{new Date(measurement.measuredAt).toLocaleString()}</p></div>
           <p className="text-slate-500 sm:col-span-3">{measurement.note}</p>
         </div>
       )}
