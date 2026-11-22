@@ -37,13 +37,14 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { useEco } from '../context/EcoContext';
 
 export const MachineLearningPage: React.FC = () => {
-  const { mlPredictions, navigate, recordsTotals } = useEco();
+  const { mlPredictions, navigate, recordsTotals, activities } = useEco();
+  const hasEnoughHistory = activities.length >= 6;
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'model' | 'historical' | 'future'>('overview');
 
   // Historical + Forecasted multi-month data for the main chart
-  const timelineData = [
+  const timelineData = hasEnoughHistory ? [
     { month: 'May', actual: 18.2, predicted: null, lower: null, upper: null },
     { month: 'Jun', actual: 21.4, predicted: null, lower: null, upper: null },
     { month: 'Jul', actual: 19.8, predicted: null, lower: null, upper: null },
@@ -53,7 +54,7 @@ export const MachineLearningPage: React.FC = () => {
     { month: 'Nov (Pred)', actual: null, predicted: 26.4, lower: 24.1, upper: 28.7 },
     { month: 'Dec (Pred)', actual: null, predicted: 29.8, lower: 26.5, upper: 33.1 },
     { month: 'Jan (Pred)', actual: null, predicted: 24.2, lower: 21.8, upper: 26.9 },
-  ];
+  ] : [];
 
   // Usage Breakdown Donut Data
   const breakdownData = [
@@ -86,6 +87,11 @@ export const MachineLearningPage: React.FC = () => {
         </button>
       }
     >
+      {!hasEnoughHistory && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Forecasts are unavailable until at least six activity records have been collected. Add real measurements to build your history.
+        </div>
+      )}
       <div className="space-y-6">
 
         {/* TABS NAVIGATION */}
