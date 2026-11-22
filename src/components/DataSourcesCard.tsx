@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Cloud, LoaderCircle, RefreshCw, ShieldCheck, Unplug } from 'lucide-react';
+import { Cloud, LoaderCircle, RefreshCw, ShieldCheck, Trash2, Unplug } from 'lucide-react';
+import { useEco } from '../context/EcoContext';
 
 type DriveStatus = { connected: boolean; status: string; lastSyncAt: string | null };
 type Measurement = {
@@ -8,6 +9,7 @@ type Measurement = {
 };
 
 export const DataSourcesCard: React.FC = () => {
+  const { deleteCollectedData } = useEco();
   const [status, setStatus] = useState<DriveStatus | null>(null);
   const [googleSignedIn, setGoogleSignedIn] = useState(false);
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
@@ -72,6 +74,18 @@ export const DataSourcesCard: React.FC = () => {
     finally { setBusy(false); }
   };
 
+  const clearData = async () => {
+    if (!window.confirm('Delete EcoMind activity records and Google storage measurement history for this account?')) return;
+    setBusy(true); setMessage('');
+    try {
+      await deleteCollectedData();
+      setMeasurement(null);
+      setMessage('Collected activity records and storage history deleted.');
+      await refreshStatus();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not delete collected data.'); }
+    finally { setBusy(false); }
+  };
+
   const formatGb = (bytes: number) => (bytes / (1024 ** 3)).toFixed(2);
   const connected = status?.connected === true;
 
@@ -115,6 +129,11 @@ export const DataSourcesCard: React.FC = () => {
               <Unplug className="h-4 w-4" /> Disconnect
             </button>
           </>
+        )}
+        {googleSignedIn && (
+          <button onClick={clearData} disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60">
+            <Trash2 className="h-4 w-4" /> Delete collected data
+          </button>
         )}
       </div>
       {message && <p role="status" className="mt-3 text-xs text-slate-600">{message}</p>}
