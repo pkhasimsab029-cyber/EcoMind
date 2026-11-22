@@ -314,6 +314,30 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const isAuthenticated = !!user;
 
+  // Restore the backend-authenticated Google session from its HTTP-only cookie.
+  useEffect(() => {
+    let active = true;
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then((response) => response.ok ? response.json() : { user: null })
+      .then((result: { user: { id: string; name: string; email: string; avatarUrl?: string } | null }) => {
+        if (!active || !result.user) return;
+        const profile: UserProfile = {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          avatarUrl: result.user.avatarUrl,
+          role: 'Digital Sustainability Lead',
+          carbonBudgetKg: 40,
+          joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        };
+        setUser(profile);
+        setCurrentRoute('/dashboard');
+        window.location.hash = '/dashboard';
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   // If user is not authenticated and is trying to access protected routes, route to /auth
   useEffect(() => {
     if (!isAuthenticated && currentRoute !== '/auth') {
@@ -545,6 +569,7 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Logout
   const logout = () => {
+    void fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
     setUser(null);
     localStorage.removeItem('ecomind_active_user');
     showToast('You have been logged out safely.', 'info');
