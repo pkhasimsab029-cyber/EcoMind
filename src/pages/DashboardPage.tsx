@@ -32,6 +32,7 @@ import {
   Line
 } from 'recharts';
 import { AppLayout } from '../components/layout/AppLayout';
+import { DataSourcesCard } from '../components/DataSourcesCard';
 import { useEco } from '../context/EcoContext';
 import confetti from 'canvas-confetti';
 
@@ -687,6 +688,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
       </div>
-    </AppLayout>
+          <div className="mt-6"><DataSourcesCard /></div>
+      </AppLayout>
   );
 };
