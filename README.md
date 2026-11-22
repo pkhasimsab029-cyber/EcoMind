@@ -69,7 +69,7 @@ An eco-friendly, modern web application designed to track, estimate, predict, an
 
 An optional server backend now supports Google OAuth sign-in, a separate Google account storage quota permission, encrypted server-side OAuth tokens, and per-user SQLite records. Manual activity entry remains available. See [AUTOMATIC_TRACKING.md](./AUTOMATIC_TRACKING.md) for Google Cloud setup, environment variables, privacy details, and the metrics Google cannot provide.
 
-For local development, start the API with `npm run api` and the Vite frontend with `npm run api  # in a separate terminal` in separate terminals after configuring `.env`.
+For local development, start the API with `npm run api` in one terminal and the Vite frontend with `npm run dev` in another after configuring `.env`.
 
 ## 💻 Running the App
 
