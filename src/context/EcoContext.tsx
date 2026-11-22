@@ -667,7 +667,12 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: item.type, quantity: item.quantity, unit: item.unit, source: 'manual' })
+        body: JSON.stringify({
+          category: item.type,
+          quantity: item.type === 'cloud' ? cloudInput.gb * cloudInput.days / 30 : item.quantity,
+          unit: item.type === 'cloud' ? 'GB-month' : item.unit,
+          source: 'manual'
+        })
       }))).catch(() => undefined);
     }
     showToast('Activities saved successfully! Processing emissions data...', 'success');
