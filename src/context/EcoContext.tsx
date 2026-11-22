@@ -394,6 +394,35 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user?.id]);
 
+  // Include the latest measured Google account quota in the user's footprint totals.
+  useEffect(() => {
+    if (!user?.id || user.id.startsWith('user_')) return;
+    let active = true;
+    fetch('/api/google/drive/history', { credentials: 'same-origin' })
+      .then((response) => response.ok ? response.json() : { measurements: [] })
+      .then((result: { measurements: Array<{ provider: string; used_bytes: number; measured_at: string; energy_kwh: number; co2_kg: number; factor: string }> }) => {
+        if (!active || !result.measurements?.length) return;
+        const latest = result.measurements[0];
+        const measuredDate = String(latest.measured_at).slice(0, 10);
+        const quotaActivity: ActivityRecord = {
+          id: 'google-storage-current',
+          date: measuredDate,
+          type: 'cloud',
+          typeName: 'Google account storage quota',
+          details: `Google account storage measured on ${measuredDate}`,
+          quantity: Number(latest.used_bytes) / (1024 ** 3),
+          unit: 'GB snapshot',
+          energyUsedKwh: Number(latest.energy_kwh),
+          co2Kg: Number(latest.co2_kg),
+          emissionFactor: latest.factor,
+          source: 'Google storage quota API estimate'
+        };
+        setActivities((prev) => [quotaActivity, ...prev.filter((activity) => activity.id !== quotaActivity.id)]);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.id]);
+
   // Save activities to user-specific localStorage key
   useEffect(() => {
     if (user?.id) {
