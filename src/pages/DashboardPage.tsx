@@ -32,6 +32,7 @@ import {
   Line
 } from 'recharts';
 import { AppLayout } from '../components/layout/AppLayout';
+import { DataSourcesCard } from '../components/DataSourcesCard';
 import { useEco } from '../context/EcoContext';
 import confetti from 'canvas-confetti';
 
@@ -39,6 +40,7 @@ export const DashboardPage: React.FC = () => {
   const {
     recordsTotals,
     activities,
+    mlPredictions,
     recommendations,
     toggleRecommendation,
     navigate,
@@ -51,46 +53,36 @@ export const DashboardPage: React.FC = () => {
   // Trend Chart Toggle
   const [trendRange, setTrendRange] = useState<'7days' | '30days' | '3months'>('30days');
 
-  // 7 Days Trend Data
-  const trend7Days = [
-    { day: 'Thu', total: 4.8, ai: 1.1, cloud: 0.9, transfer: 1.8, compute: 1.0 },
-    { day: 'Fri', total: 5.6, ai: 1.4, cloud: 0.9, transfer: 2.1, compute: 1.2 },
-    { day: 'Sat', total: 3.1, ai: 0.6, cloud: 0.8, transfer: 1.1, compute: 0.6 },
-    { day: 'Sun', total: 2.4, ai: 0.4, cloud: 0.8, transfer: 0.8, compute: 0.4 },
-    { day: 'Mon', total: 5.9, ai: 1.6, cloud: 1.0, transfer: 2.0, compute: 1.3 },
-    { day: 'Tue', total: 6.4, ai: 1.8, cloud: 1.1, transfer: 2.2, compute: 1.3 },
-    { day: 'Wed (Today)', total: 5.1, ai: 1.3, cloud: 1.0, transfer: 1.7, compute: 1.1 },
-  ];
+  // Historical chart points are calculated from this user's saved activity records.
+  const dailyTotals = new Map<string, { day: string; total: number; ai: number; cloud: number; transfer: number; compute: number }>();
+  for (const activity of activities) {
+    const day = activity.date.slice(0, 10);
+    const row = dailyTotals.get(day) || { day, total: 0, ai: 0, cloud: 0, transfer: 0, compute: 0 };
+    row.total += activity.co2Kg;
+    row[activity.type] += activity.co2Kg;
+    dailyTotals.set(day, row);
+  }
+  const rangeDays = trendRange === '7days' ? 7 : trendRange === '30days' ? 30 : 90;
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - rangeDays);
+  const currentTrendData = [...dailyTotals.values()]
+    .filter((point) => new Date(`${point.day}T00:00:00`).getTime() >= cutoffDate.getTime())
+    .sort((a, b) => a.day.localeCompare(b.day))
+    .map((point) => ({
+      ...point,
+      day: new Date(`${point.day}T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    }));
 
-  // 30 Days Trend Data
-  const trend30Days = [
-    { day: 'Week 1', total: 22.4, ai: 5.2, cloud: 4.8, transfer: 7.9, compute: 4.5 },
-    { day: 'Week 2', total: 25.1, ai: 6.4, cloud: 4.9, transfer: 8.4, compute: 5.4 },
-    { day: 'Week 3', total: 21.8, ai: 5.0, cloud: 4.7, transfer: 7.5, compute: 4.6 },
-    { day: 'Week 4', total: 24.1, ai: 5.8, cloud: 5.1, transfer: 8.2, compute: 5.0 },
-  ];
-
-  // 3 Months Trend Data
-  const trend3Months = [
-    { day: 'August', total: 88.5, ai: 20.4, cloud: 19.2, transfer: 29.5, compute: 19.4 },
-    { day: 'September', total: 84.1, ai: 21.6, cloud: 18.9, transfer: 27.8, compute: 15.8 },
-    { day: 'October', total: 78.6, ai: 22.1, cloud: 17.5, transfer: 24.2, compute: 14.8 },
-  ];
-
-  const currentTrendData =
-    trendRange === '7days' ? trend7Days : trendRange === '30days' ? trend30Days : trend3Months;
-
-  // Mini sparkline data for "Predicted Next Month" card
-  const sparklineData = [
-    { v: 34 }, { v: 31 }, { v: 29 }, { v: 28 }, { v: 27.5 }, { v: 26.4 }
-  ];
+  // Forecast cards remain empty until a user has six recorded activity samples.
+  const hasEnoughHistory = mlPredictions.length > 0;
+  const sparklineData = mlPredictions.map((prediction) => ({ v: prediction.predictedCo2Kg }));
 
   // Donut data
   const donutData = [
-    { name: 'AI Usage', value: recordsTotals.aiPercent || 22, color: '#8B5CF6' },
-    { name: 'Cloud Storage', value: recordsTotals.cloudPercent || 16, color: '#3B82F6' },
-    { name: 'Data Transfer', value: recordsTotals.transferPercent || 37, color: '#10B981' },
-    { name: 'Computing Time', value: recordsTotals.computePercent || 25, color: '#F59E0B' },
+    { name: 'AI Usage', value: recordsTotals.aiPercent, color: '#8B5CF6' },
+    { name: 'Cloud Storage', value: recordsTotals.cloudPercent, color: '#3B82F6' },
+    { name: 'Data Transfer', value: recordsTotals.transferPercent, color: '#10B981' },
+    { name: 'Computing Time', value: recordsTotals.computePercent, color: '#F59E0B' },
   ];
 
   // Motivational Goal Celebration
@@ -453,19 +445,25 @@ export const DashboardPage: React.FC = () => {
                   Predicted Next Month
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                  Random Forest
+                  {hasEnoughHistory ? 'Activity trend' : 'Collecting history'}
                 </span>
               </div>
 
               <div className="flex items-baseline justify-between">
                 <div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-3xl font-extrabold text-white font-sans">26.4</span>
-                    <span className="text-xs font-semibold text-emerald-300">kg CO₂e</span>
-                  </div>
-                  <p className="text-[11px] text-emerald-200/80 mt-1">
-                    On track to -8% reduction with applied actions
-                  </p>
+                  {hasEnoughHistory ? (
+                    <>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl font-extrabold text-white font-sans">{mlPredictions[0].predictedCo2Kg.toFixed(1)}</span>
+                        <span className="text-xs font-semibold text-emerald-300">kg CO₂e</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-200/80 mt-1">Forecast from ${mlPredictions.length} monthly trend points.</p>
+                    </>
+                  ) : (
+                    <p className="max-w-[220px] text-[11px] text-emerald-100/90">
+                      Add activity measurements. A forecast appears after six records are available.
+                    </p>
+                  )}
                 </div>
 
                 {/* Mini Sparkline */}
@@ -687,6 +685,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
       </div>
-    </AppLayout>
+          <div className="mt-6"><DataSourcesCard /></div>
+      </AppLayout>
   );
 };

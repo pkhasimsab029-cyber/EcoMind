@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and local EcoMind data
+.env
+.env.*
+!.env.example
+server/*.sqlite
+server/*.sqlite-*

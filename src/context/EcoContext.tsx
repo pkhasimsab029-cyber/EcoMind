@@ -74,6 +74,7 @@ interface EcoContextType {
   activities: ActivityRecord[];
   addCurrentActivitiesAsRecords: () => void;
   deleteActivity: (id: string) => void;
+  deleteCollectedData: () => Promise<void>;
   resetToDefaults: () => void;
 
   // Aggregate Totals across all records
@@ -249,32 +250,41 @@ const INITIAL_RECOMMENDATIONS: RecommendationItem[] = [
   }
 ];
 
-const INITIAL_ML_PREDICTIONS: MLPrediction[] = [
-  {
-    month: 'November 2026',
-    predictedCo2Kg: 26.4,
-    confidenceLower: 24.1,
-    confidenceUpper: 28.7,
-    primaryDriver: 'Increased AI automated testing',
-    reductionPotentialKg: 3.8
-  },
-  {
-    month: 'December 2026',
-    predictedCo2Kg: 29.8,
-    confidenceLower: 26.5,
-    confidenceUpper: 33.1,
-    primaryDriver: 'Year-end data backup & archival',
-    reductionPotentialKg: 4.9
-  },
-  {
-    month: 'January 2027',
-    predictedCo2Kg: 24.2,
-    confidenceLower: 21.8,
-    confidenceUpper: 26.9,
-    primaryDriver: 'Optimized cloud cold storage policy',
-    reductionPotentialKg: 5.4
+const buildActivityPredictions = (records: ActivityRecord[]): MLPrediction[] => {
+  if (records.length < 6) return [];
+  const byMonth = new Map<string, number>();
+  const driverTotals: Record<ActivityCategory, number> = { ai: 0, cloud: 0, transfer: 0, compute: 0 };
+  for (const record of records) {
+    const month = record.date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) || 0) + record.co2Kg);
+    driverTotals[record.type] += record.co2Kg;
   }
-];
+  const history = [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b));
+  if (history.length < 2) return [];
+  const meanX = (history.length - 1) / 2;
+  const meanY = history.reduce((sum, [, value]) => sum + value, 0) / history.length;
+  const denominator = history.reduce((sum, _point, index) => sum + (index - meanX) ** 2, 0);
+  const slope = denominator ? history.reduce((sum, [, value], index) => sum + (index - meanX) * (value - meanY), 0) / denominator : 0;
+  const intercept = meanY - slope * meanX;
+  const residual = Math.sqrt(history.reduce((sum, [, value], index) => sum + (value - (intercept + slope * index)) ** 2, 0) / history.length);
+  const driver = (Object.entries(driverTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || 'ai') as ActivityCategory;
+  const driverNames: Record<ActivityCategory, string> = { ai: 'AI usage', cloud: 'cloud storage', transfer: 'data transfers', compute: 'computing activity' };
+  return [1, 2, 3].map((offset) => {
+    const projected = Math.max(0, intercept + slope * (history.length - 1 + offset));
+    const date = new Date(`${history[history.length - 1][0]}-01T00:00:00.000Z`);
+    date.setUTCMonth(date.getUTCMonth() + offset);
+    const month = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const margin = Math.max(0.1, residual * 1.96);
+    return {
+      month,
+      predictedCo2Kg: Number(projected.toFixed(2)),
+      confidenceLower: Number(Math.max(0, projected - margin).toFixed(2)),
+      confidenceUpper: Number((projected + margin).toFixed(2)),
+      primaryDriver: `Recorded ${driverNames[driver]} trend`,
+      reductionPotentialKg: Number((projected * 0.1).toFixed(2))
+    };
+  });
+};
 
 export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Sync router with hash URL
@@ -313,6 +323,30 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const isAuthenticated = !!user;
+
+  // Restore the backend-authenticated Google session from its HTTP-only cookie.
+  useEffect(() => {
+    let active = true;
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then((response) => response.ok ? response.json() : { user: null })
+      .then((result: { user: { id: string; name: string; email: string; avatarUrl?: string } | null }) => {
+        if (!active || !result.user) return;
+        const profile: UserProfile = {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          avatarUrl: result.user.avatarUrl,
+          role: 'Digital Sustainability Lead',
+          carbonBudgetKg: 40,
+          joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        };
+        setUser(profile);
+        setCurrentRoute('/dashboard');
+        window.location.hash = '/dashboard';
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   // If user is not authenticated and is trying to access protected routes, route to /auth
   useEffect(() => {
@@ -357,9 +391,8 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return BENCHMARK_ACTIVITIES;
       }
     }
-    // Seed with benchmark activities for this new user so dashboard and charts are populated
-    localStorage.setItem(storageKey, JSON.stringify(BENCHMARK_ACTIVITIES));
-    return BENCHMARK_ACTIVITIES;
+    // New users start with an empty history; never present sample activity as measured data.
+    return [];
   };
 
   const [activities, setActivities] = useState<ActivityRecord[]>(() => getUserActivities(user?.id));
@@ -369,6 +402,35 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user?.id) {
       setActivities(getUserActivities(user.id));
     }
+  }, [user?.id]);
+
+  // Include the latest measured Google account quota in the user's footprint totals.
+  useEffect(() => {
+    if (!user?.id || user.id.startsWith('user_')) return;
+    let active = true;
+    fetch('/api/google/drive/history', { credentials: 'same-origin' })
+      .then((response) => response.ok ? response.json() : { measurements: [] })
+      .then((result: { measurements: Array<{ provider: string; used_bytes: number; measured_at: string; energy_kwh: number; co2_kg: number; factor: string }> }) => {
+        if (!active || !result.measurements?.length) return;
+        const latest = result.measurements[0];
+        const measuredDate = String(latest.measured_at).slice(0, 10);
+        const quotaActivity: ActivityRecord = {
+          id: 'google-storage-current',
+          date: measuredDate,
+          type: 'cloud',
+          typeName: 'Google account storage quota',
+          details: `Google account storage measured on ${measuredDate}`,
+          quantity: Number(latest.used_bytes) / (1024 ** 3),
+          unit: 'GB snapshot',
+          energyUsedKwh: Number(latest.energy_kwh),
+          co2Kg: Number(latest.co2_kg),
+          emissionFactor: latest.factor,
+          source: 'Google storage quota API estimate'
+        };
+        setActivities((prev) => [quotaActivity, ...prev.filter((activity) => activity.id !== quotaActivity.id)]);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
   }, [user?.id]);
 
   // Save activities to user-specific localStorage key
@@ -476,8 +538,8 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(profile);
 
     // Initialize personal activities for this user
-    setActivities(BENCHMARK_ACTIVITIES);
-    localStorage.setItem(`ecomind_activities_${newUserId}`, JSON.stringify(BENCHMARK_ACTIVITIES));
+    setActivities([]);
+    localStorage.setItem(`ecomind_activities_${newUserId}`, JSON.stringify([]));
 
     showToast(`Welcome to EcoMind, ${cleanName}! Your account is ready.`, 'success');
     navigate('/dashboard');
@@ -545,6 +607,7 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Logout
   const logout = () => {
+    void fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
     setUser(null);
     localStorage.removeItem('ecomind_active_user');
     showToast('You have been logged out safely.', 'info');
@@ -637,6 +700,20 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ];
 
     setActivities((prev) => [...newItems, ...prev]);
+    // Store manual fallback records on the backend when this is a Google-authenticated account.
+    if (user?.id && !user.id.startsWith('user_')) {
+      void Promise.all(newItems.map((item) => fetch('/api/activities', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: item.type,
+          quantity: item.type === 'cloud' ? cloudInput.gb * cloudInput.days / 30 : item.quantity,
+          unit: item.type === 'cloud' ? 'GB-month' : item.unit,
+          source: 'manual'
+        })
+      }))).catch(() => undefined);
+    }
     showToast('Activities saved successfully! Processing emissions data...', 'success');
     navigate('/processing');
   };
@@ -644,6 +721,16 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteActivity = (id: string) => {
     setActivities((prev) => prev.filter((a) => a.id !== id));
     showToast('Activity record removed', 'info');
+  };
+
+  const deleteCollectedData = async () => {
+    if (user?.id && !user.id.startsWith('user_')) {
+      const response = await fetch('/api/activities', { method: 'DELETE', credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Could not delete collected account data.');
+    }
+    setActivities([]);
+    if (user?.id) localStorage.setItem(`ecomind_activities_${user.id}`, JSON.stringify([]));
+    showToast('Collected activity data deleted.', 'info');
   };
 
   const resetToDefaults = () => {
@@ -728,11 +815,12 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activities,
         addCurrentActivitiesAsRecords,
         deleteActivity,
+        deleteCollectedData,
         resetToDefaults,
         recordsTotals,
         recommendations,
         toggleRecommendation,
-        mlPredictions: INITIAL_ML_PREDICTIONS,
+        mlPredictions: buildActivityPredictions(activities),
         toast,
         showToast,
       }}

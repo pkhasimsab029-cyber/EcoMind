@@ -37,30 +37,49 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { useEco } from '../context/EcoContext';
 
 export const MachineLearningPage: React.FC = () => {
-  const { mlPredictions, navigate, recordsTotals } = useEco();
+  const { mlPredictions, navigate, recordsTotals, activities } = useEco();
+  const hasEnoughHistory = mlPredictions.length > 0;
+  const nextMonthForecast = mlPredictions[0]?.predictedCo2Kg ?? 0;
+  const categoryForecast = (currentCo2: number) => recordsTotals.totalCo2 > 0
+    ? nextMonthForecast * currentCo2 / recordsTotals.totalCo2
+    : 0;
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'model' | 'historical' | 'future'>('overview');
 
-  // Historical + Forecasted multi-month data for the main chart
-  const timelineData = [
-    { month: 'May', actual: 18.2, predicted: null, lower: null, upper: null },
-    { month: 'Jun', actual: 21.4, predicted: null, lower: null, upper: null },
-    { month: 'Jul', actual: 19.8, predicted: null, lower: null, upper: null },
-    { month: 'Aug', actual: 23.5, predicted: null, lower: null, upper: null },
-    { month: 'Sep', actual: 22.1, predicted: null, lower: null, upper: null },
-    { month: 'Oct (Now)', actual: 24.1, predicted: 24.1, lower: 22.8, upper: 25.4 },
-    { month: 'Nov (Pred)', actual: null, predicted: 26.4, lower: 24.1, upper: 28.7 },
-    { month: 'Dec (Pred)', actual: null, predicted: 29.8, lower: 26.5, upper: 33.1 },
-    { month: 'Jan (Pred)', actual: null, predicted: 24.2, lower: 21.8, upper: 26.9 },
-  ];
+  // Build the chart from this user's recorded monthly activity and trend forecasts.
+  const monthlyHistory = new Map<string, { co2: number; energy: number; categories: Record<string, number> }>();
+  for (const activity of activities) {
+    const month = activity.date.slice(0, 7);
+    const row = monthlyHistory.get(month) || { co2: 0, energy: 0, categories: {} };
+    row.co2 += activity.co2Kg;
+    row.energy += activity.energyUsedKwh;
+    row.categories[activity.typeName] = (row.categories[activity.typeName] || 0) + activity.co2Kg;
+    monthlyHistory.set(month, row);
+  }
+  const timelineData = hasEnoughHistory ? [
+    ...[...monthlyHistory.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, metrics]) => ({
+      month: new Date(`${month}-01T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+      actual: metrics.co2,
+      predicted: null,
+      lower: null,
+      upper: null
+    })),
+    ...mlPredictions.map((prediction) => ({
+      month: prediction.month,
+      actual: null,
+      predicted: prediction.predictedCo2Kg,
+      lower: prediction.confidenceLower,
+      upper: prediction.confidenceUpper
+    }))
+  ] : [];
 
   // Usage Breakdown Donut Data
   const breakdownData = [
-    { name: 'AI Usage', value: recordsTotals.aiPercent || 30, color: '#8B5CF6' },
-    { name: 'Cloud Storage', value: recordsTotals.cloudPercent || 23, color: '#3B82F6' },
-    { name: 'Data Transfers', value: recordsTotals.transferPercent || 33, color: '#10B981' },
-    { name: 'Computing Time', value: recordsTotals.computePercent || 14, color: '#F59E0B' },
+    { name: 'AI Usage', value: recordsTotals.aiPercent, color: '#8B5CF6' },
+    { name: 'Cloud Storage', value: recordsTotals.cloudPercent, color: '#3B82F6' },
+    { name: 'Data Transfers', value: recordsTotals.transferPercent, color: '#10B981' },
+    { name: 'Computing Time', value: recordsTotals.computePercent, color: '#F59E0B' },
   ];
 
   // Feature Importance for Model Details Tab
@@ -71,10 +90,29 @@ export const MachineLearningPage: React.FC = () => {
     { feature: 'GenAI Prompts & Tokens', weight: 12, color: '#8B5CF6' },
   ];
 
+  if (!hasEnoughHistory) {
+    return (
+      <AppLayout
+        title="Machine Learning Prediction"
+        subtitle="Forecasts use your recorded activity history"
+        step="Step 4"
+        actions={
+          <button onClick={() => navigate('/dashboard')} className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-semibold text-emerald-800">
+            Continue to Dashboard
+          </button>
+        }
+      >
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+          Forecasts are unavailable until at least six activity records span two or more months. Add real measurements to build your history.
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout
       title="Machine Learning Prediction"
-      subtitle="Step 4: Supervised Random Forest regression forecasting future digital carbon footprint"
+      subtitle="Step 4: Forecast future emissions from your recorded monthly activity trend"
       step="Step 4"
       actions={
         <button
@@ -148,13 +186,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-slate-800 font-sans">
-                    26.4
+                    {nextMonthForecast.toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-amber-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>+3.2% vs last month</span>
+                  <span>Estimated from recorded monthly trend</span>
                 </div>
               </div>
 
@@ -168,13 +206,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-purple-700 font-sans">
-                    7.4
+                    {categoryForecast(recordsTotals.aiCo2).toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-purple-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>+8.1% (High GenAI load)</span>
+                  <span>Estimated from your recorded activity mix</span>
                 </div>
               </div>
 
@@ -188,13 +226,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-blue-700 font-sans">
-                    5.6
+                    {categoryForecast(recordsTotals.cloudCo2).toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
                   <TrendingDown className="w-3.5 h-3.5" />
-                  <span>-2.4% (Tier optimization)</span>
+                  <span>Estimated from your recorded activity mix</span>
                 </div>
               </div>
 
@@ -208,13 +246,13 @@ export const MachineLearningPage: React.FC = () => {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl sm:text-3xl font-black text-emerald-700 font-sans">
-                    8.2
+                    {categoryForecast(recordsTotals.transferCo2).toFixed(1)}
                   </span>
                   <span className="text-xs font-bold text-slate-500">kg CO₂e</span>
                 </div>
                 <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-amber-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>+1.5% (Asset sync traffic)</span>
+                  <span>Estimated from your recorded activity mix</span>
                 </div>
               </div>
             </div>
@@ -232,7 +270,7 @@ export const MachineLearningPage: React.FC = () => {
                         <span>Historical vs Predicted Emissions (kg CO₂e)</span>
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Actual baseline (solid blue) compared with ML 95% confidence projection (dashed green).
+                        Monthly activity totals (solid blue) compared with a linear trend estimate (dashed green).
                       </p>
                     </div>
 
@@ -294,18 +332,14 @@ export const MachineLearningPage: React.FC = () => {
                           }}
                         />
 
-                        {/* Cutoff Reference Line */}
-                        <ReferenceLine
-                          x="Oct (Now)"
-                          stroke="#E11D48"
-                          strokeDasharray="3 3"
-                          label={{
-                            value: 'Present Cutoff',
-                            fill: '#E11D48',
-                            fontSize: 10,
-                            position: 'top'
-                          }}
-                        />
+                        {/* Mark the last recorded month before the forecast begins. */}
+                        {(() => {
+                          const historyMonths = [...monthlyHistory.keys()].sort();
+                          const lastMonth = historyMonths[historyMonths.length - 1];
+                          if (!lastMonth) return null;
+                          const cutoff = new Date(`${lastMonth}-01T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                          return <ReferenceLine x={cutoff} stroke="#E11D48" strokeDasharray="3 3" label={{ value: 'Present Cutoff', fill: '#E11D48', fontSize: 10, position: 'top' }} />;
+                        })()}
 
                         {/* Shaded Confidence Area */}
                         <Area
@@ -519,7 +553,7 @@ export const MachineLearningPage: React.FC = () => {
                       </h3>
                     </div>
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 border border-emerald-200">
-                      Random Forest Regressor
+                      Linear Trend Regression
                     </span>
                   </div>
 
@@ -530,25 +564,25 @@ export const MachineLearningPage: React.FC = () => {
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                        MAE Score
+                        MAE validation
                       </span>
-                      <span className="text-lg font-black text-slate-800">0.42</span>
-                      <span className="text-[10px] text-slate-500 block">kg CO₂e error</span>
+                      <span className="text-lg font-black text-slate-800">—</span>
+                      <span className="text-[10px] text-slate-500 block">not evaluated</span>
                     </div>
 
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                        RMSE Score
+                        RMSE validation
                       </span>
-                      <span className="text-lg font-black text-slate-800">0.58</span>
-                      <span className="text-[10px] text-slate-500 block">std deviation</span>
+                      <span className="text-lg font-black text-slate-800">—</span>
+                      <span className="text-[10px] text-slate-500 block">not evaluated</span>
                     </div>
 
                     <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                       <span className="text-[10px] uppercase font-bold text-emerald-700 block">
-                        R² Score
+                        R² validation
                       </span>
-                      <span className="text-lg font-black text-emerald-800">0.94</span>
+                      <span className="text-lg font-black text-emerald-800">—</span>
                       <span className="text-[10px] text-emerald-600 block">94% fit</span>
                     </div>
                   </div>
@@ -646,7 +680,7 @@ export const MachineLearningPage: React.FC = () => {
           <div className="eco-card p-6 bg-white border border-emerald-100 space-y-6 animate-in fade-in duration-200">
             <div>
               <h3 className="text-base font-bold text-slate-800">
-                Random Forest Regressor Specifications
+                Linear Trend Regression Specifications
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 Detailed hyperparameter configuration and feature importance weights.
@@ -731,7 +765,7 @@ export const MachineLearningPage: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-slate-800">Historical Monthly Carbon Records</h3>
               <p className="text-xs text-slate-500 mt-1">
-                6-month verified audit logs used to train the Random Forest predictive model.
+                Monthly totals calculated from your saved activity records.
               </p>
             </div>
 
@@ -747,48 +781,18 @@ export const MachineLearningPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">May 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">18.2</td>
-                    <td className="py-3 px-3 text-right text-slate-600">38.3</td>
-                    <td className="py-3 px-3 text-slate-700">Data Transfer</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">June 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">21.4</td>
-                    <td className="py-3 px-3 text-right text-slate-600">45.0</td>
-                    <td className="py-3 px-3 text-slate-700">Cloud Storage</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">July 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">19.8</td>
-                    <td className="py-3 px-3 text-right text-slate-600">41.6</td>
-                    <td className="py-3 px-3 text-slate-700">Computing Time</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">August 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">23.5</td>
-                    <td className="py-3 px-3 text-right text-slate-600">49.4</td>
-                    <td className="py-3 px-3 text-slate-700">AI Usage</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">September 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">22.1</td>
-                    <td className="py-3 px-3 text-right text-slate-600">46.5</td>
-                    <td className="py-3 px-3 text-slate-700">Data Transfer</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">October 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-emerald-700">24.1</td>
-                    <td className="py-3 px-3 text-right text-slate-600">50.7</td>
-                    <td className="py-3 px-3 text-slate-700">Data Transfers & AI</td>
-                    <td className="py-3 px-3 text-center"><span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Active</span></td>
-                  </tr>
+                  {[...monthlyHistory.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, metrics]) => {
+                    const dominantCategory = Object.entries(metrics.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+                    return (
+                      <tr key={month} className="hover:bg-slate-50">
+                        <td className="py-3 px-3 font-semibold">{new Date(`${month}-01T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</td>
+                        <td className="py-3 px-3 text-right font-bold text-slate-800">{metrics.co2.toFixed(2)}</td>
+                        <td className="py-3 px-3 text-right text-slate-600">{metrics.energy.toFixed(2)}</td>
+                        <td className="py-3 px-3 text-slate-700">{dominantCategory}</td>
+                        <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Recorded</span></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
