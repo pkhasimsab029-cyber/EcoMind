@@ -108,21 +108,9 @@ export const AuthPage: React.FC = () => {
     }, 400);
   };
 
-  // Google OAuth simulator: prompts user for their actual account details
+  // Google sign-in is completed by the backend OAuth flow. No password is requested or stored.
   const handleGoogleAuth = () => {
-    const googleName = prompt('Enter your name to connect with Google:', regName || 'Alex Green');
-    if (!googleName) return;
-    const googleEmail = prompt(
-      'Enter your Google email address:',
-      regEmail || `${googleName.toLowerCase().replace(/\s+/g, '.')}@gmail.com`
-    );
-    if (!googleEmail) return;
-
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      register(googleName, googleEmail, 'GoogleAuthVerified123!');
-    }, 500);
+    window.location.assign('/api/auth/google');
   };
 
   return (
@@ -421,7 +409,7 @@ export const AuthPage: React.FC = () => {
                           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                         />
                       </svg>
-                      <span>Register with Google</span>
+                      <span>Continue with Google</span>
                     </button>
 
                     <p className="text-center text-xs text-slate-500 pt-1">
