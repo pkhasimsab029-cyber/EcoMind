@@ -9,12 +9,18 @@ type Measurement = {
 
 export const DataSourcesCard: React.FC = () => {
   const [status, setStatus] = useState<DriveStatus | null>(null);
+  const [googleSignedIn, setGoogleSignedIn] = useState(false);
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   const refreshStatus = useCallback(async () => {
     try {
+      const authResponse = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      const auth = authResponse.ok ? await authResponse.json() : { user: null };
+      const hasGoogleSession = Boolean(auth.user);
+      setGoogleSignedIn(hasGoogleSession);
+      if (!hasGoogleSession) { setStatus(null); setMeasurement(null); return; }
       const response = await fetch('/api/google/drive/status', { credentials: 'same-origin' });
       if (!response.ok) { setStatus(null); return; }
       const current: DriveStatus = await response.json();
@@ -82,7 +88,7 @@ export const DataSourcesCard: React.FC = () => {
           </div>
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-          {connected ? 'Connected' : 'Permission Required'}
+          {connected ? 'Connected' : googleSignedIn ? 'Permission Required' : 'Google sign-in required'}
         </span>
       </div>
 
@@ -97,8 +103,8 @@ export const DataSourcesCard: React.FC = () => {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {!connected ? (
-          <a href="/api/google/drive/connect" className="inline-flex items-center gap-2 rounded-xl bg-[#1F9D55] px-4 py-2 text-xs font-semibold text-white hover:bg-[#187E44]">
-            <ShieldCheck className="h-4 w-4" /> Connect Google storage
+          <a href={googleSignedIn ? '/api/google/drive/connect' : '/api/auth/google'} className="inline-flex items-center gap-2 rounded-xl bg-[#1F9D55] px-4 py-2 text-xs font-semibold text-white hover:bg-[#187E44]">
+            <ShieldCheck className="h-4 w-4" /> {googleSignedIn ? 'Connect Google storage' : 'Continue with Google'}
           </a>
         ) : (
           <>
