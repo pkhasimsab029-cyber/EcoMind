@@ -250,32 +250,41 @@ const INITIAL_RECOMMENDATIONS: RecommendationItem[] = [
   }
 ];
 
-const INITIAL_ML_PREDICTIONS: MLPrediction[] = [
-  {
-    month: 'November 2026',
-    predictedCo2Kg: 26.4,
-    confidenceLower: 24.1,
-    confidenceUpper: 28.7,
-    primaryDriver: 'Increased AI automated testing',
-    reductionPotentialKg: 3.8
-  },
-  {
-    month: 'December 2026',
-    predictedCo2Kg: 29.8,
-    confidenceLower: 26.5,
-    confidenceUpper: 33.1,
-    primaryDriver: 'Year-end data backup & archival',
-    reductionPotentialKg: 4.9
-  },
-  {
-    month: 'January 2027',
-    predictedCo2Kg: 24.2,
-    confidenceLower: 21.8,
-    confidenceUpper: 26.9,
-    primaryDriver: 'Optimized cloud cold storage policy',
-    reductionPotentialKg: 5.4
+const buildActivityPredictions = (records: ActivityRecord[]): MLPrediction[] => {
+  if (records.length < 6) return [];
+  const byMonth = new Map<string, number>();
+  const driverTotals: Record<ActivityCategory, number> = { ai: 0, cloud: 0, transfer: 0, compute: 0 };
+  for (const record of records) {
+    const month = record.date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) || 0) + record.co2Kg);
+    driverTotals[record.type] += record.co2Kg;
   }
-];
+  const history = [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b));
+  if (history.length < 2) return [];
+  const meanX = (history.length - 1) / 2;
+  const meanY = history.reduce((sum, [, value]) => sum + value, 0) / history.length;
+  const denominator = history.reduce((sum, _point, index) => sum + (index - meanX) ** 2, 0);
+  const slope = denominator ? history.reduce((sum, [, value], index) => sum + (index - meanX) * (value - meanY), 0) / denominator : 0;
+  const intercept = meanY - slope * meanX;
+  const residual = Math.sqrt(history.reduce((sum, [, value], index) => sum + (value - (intercept + slope * index)) ** 2, 0) / history.length);
+  const driver = (Object.entries(driverTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || 'ai') as ActivityCategory;
+  const driverNames: Record<ActivityCategory, string> = { ai: 'AI usage', cloud: 'cloud storage', transfer: 'data transfers', compute: 'computing activity' };
+  return [1, 2, 3].map((offset) => {
+    const projected = Math.max(0, intercept + slope * (history.length - 1 + offset));
+    const date = new Date(`${history[history.length - 1][0]}-01T00:00:00.000Z`);
+    date.setUTCMonth(date.getUTCMonth() + offset);
+    const month = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const margin = Math.max(0.1, residual * 1.96);
+    return {
+      month,
+      predictedCo2Kg: Number(projected.toFixed(2)),
+      confidenceLower: Number(Math.max(0, projected - margin).toFixed(2)),
+      confidenceUpper: Number((projected + margin).toFixed(2)),
+      primaryDriver: `Recorded ${driverNames[driver]} trend`,
+      reductionPotentialKg: Number((projected * 0.1).toFixed(2))
+    };
+  });
+};
 
 export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Sync router with hash URL
@@ -811,7 +820,7 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordsTotals,
         recommendations,
         toggleRecommendation,
-        mlPredictions: activities.length >= 6 ? INITIAL_ML_PREDICTIONS : [],
+        mlPredictions: buildActivityPredictions(activities),
         toast,
         showToast,
       }}
