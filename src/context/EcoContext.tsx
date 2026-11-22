@@ -811,7 +811,7 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordsTotals,
         recommendations,
         toggleRecommendation,
-        mlPredictions: INITIAL_ML_PREDICTIONS,
+        mlPredictions: activities.length >= 6 ? INITIAL_ML_PREDICTIONS : [],
         toast,
         showToast,
       }}
