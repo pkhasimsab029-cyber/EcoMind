@@ -75,7 +75,7 @@ For local development, start the API with `npm run api` in one terminal and the 
 
 ```bash
 # Navigate to the project directory
-cd C:\Users\Administrator\.gemini\antigravity\scratch\ecomind-app
+cd EcoMind
 
 # Install dependencies
 npm install
