@@ -166,7 +166,7 @@ app.get('/api/auth/callback', async (req, res, next) => {
       .run(req.session.userId, encrypt(secureTokens));
     setConsent.run(req.session.userId, 'google_drive_storage', 'drive.metadata.readonly', 'granted');
     try { await collectGoogleStorageMeasurement(req.session.userId); } catch (syncError) { console.error('Initial Google storage sync failed:', syncError.message); }
-    return res.redirect('/#/profile?drive=connected');
+    return res.redirect('/#/dashboard');
   } catch (error) { next(error); }
 });
 app.get('/api/auth/me', (req, res) => {
