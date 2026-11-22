@@ -44,15 +44,19 @@ export const MachineLearningPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'model' | 'historical' | 'future'>('overview');
 
   // Build the chart from this user's recorded monthly activity and trend forecasts.
-  const monthlyHistory = new Map<string, number>();
+  const monthlyHistory = new Map<string, { co2: number; energy: number; categories: Record<string, number> }>();
   for (const activity of activities) {
     const month = activity.date.slice(0, 7);
-    monthlyHistory.set(month, (monthlyHistory.get(month) || 0) + activity.co2Kg);
+    const row = monthlyHistory.get(month) || { co2: 0, energy: 0, categories: {} };
+    row.co2 += activity.co2Kg;
+    row.energy += activity.energyUsedKwh;
+    row.categories[activity.typeName] = (row.categories[activity.typeName] || 0) + activity.co2Kg;
+    monthlyHistory.set(month, row);
   }
   const timelineData = hasEnoughHistory ? [
-    ...[...monthlyHistory.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, actual]) => ({
+    ...[...monthlyHistory.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, metrics]) => ({
       month: new Date(`${month}-01T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
-      actual,
+      actual: metrics.co2,
       predicted: null,
       lower: null,
       upper: null
@@ -68,10 +72,10 @@ export const MachineLearningPage: React.FC = () => {
 
   // Usage Breakdown Donut Data
   const breakdownData = [
-    { name: 'AI Usage', value: recordsTotals.aiPercent || 30, color: '#8B5CF6' },
-    { name: 'Cloud Storage', value: recordsTotals.cloudPercent || 23, color: '#3B82F6' },
-    { name: 'Data Transfers', value: recordsTotals.transferPercent || 33, color: '#10B981' },
-    { name: 'Computing Time', value: recordsTotals.computePercent || 14, color: '#F59E0B' },
+    { name: 'AI Usage', value: recordsTotals.aiPercent, color: '#8B5CF6' },
+    { name: 'Cloud Storage', value: recordsTotals.cloudPercent, color: '#3B82F6' },
+    { name: 'Data Transfers', value: recordsTotals.transferPercent, color: '#10B981' },
+    { name: 'Computing Time', value: recordsTotals.computePercent, color: '#F59E0B' },
   ];
 
   // Feature Importance for Model Details Tab
@@ -757,7 +761,7 @@ export const MachineLearningPage: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-slate-800">Historical Monthly Carbon Records</h3>
               <p className="text-xs text-slate-500 mt-1">
-                6-month verified audit logs used to train the monthly activity trend.
+                Monthly totals calculated from your saved activity records.
               </p>
             </div>
 
@@ -773,48 +777,18 @@ export const MachineLearningPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">May 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">18.2</td>
-                    <td className="py-3 px-3 text-right text-slate-600">38.3</td>
-                    <td className="py-3 px-3 text-slate-700">Data Transfer</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">June 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">21.4</td>
-                    <td className="py-3 px-3 text-right text-slate-600">45.0</td>
-                    <td className="py-3 px-3 text-slate-700">Cloud Storage</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">July 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">19.8</td>
-                    <td className="py-3 px-3 text-right text-slate-600">41.6</td>
-                    <td className="py-3 px-3 text-slate-700">Computing Time</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">August 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">23.5</td>
-                    <td className="py-3 px-3 text-right text-slate-600">49.4</td>
-                    <td className="py-3 px-3 text-slate-700">AI Usage</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">September 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-800">22.1</td>
-                    <td className="py-3 px-3 text-right text-slate-600">46.5</td>
-                    <td className="py-3 px-3 text-slate-700">Data Transfer</td>
-                    <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Audited</span></td>
-                  </tr>
-                  <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-semibold">October 2026</td>
-                    <td className="py-3 px-3 text-right font-bold text-emerald-700">24.1</td>
-                    <td className="py-3 px-3 text-right text-slate-600">50.7</td>
-                    <td className="py-3 px-3 text-slate-700">Data Transfers & AI</td>
-                    <td className="py-3 px-3 text-center"><span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Active</span></td>
-                  </tr>
+                  {[...monthlyHistory.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, metrics]) => {
+                    const dominantCategory = Object.entries(metrics.categories).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+                    return (
+                      <tr key={month} className="hover:bg-slate-50">
+                        <td className="py-3 px-3 font-semibold">{new Date(`${month}-01T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</td>
+                        <td className="py-3 px-3 text-right font-bold text-slate-800">{metrics.co2.toFixed(2)}</td>
+                        <td className="py-3 px-3 text-right text-slate-600">{metrics.energy.toFixed(2)}</td>
+                        <td className="py-3 px-3 text-slate-700">{dominantCategory}</td>
+                        <td className="py-3 px-3 text-center"><span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold text-[10px]">Recorded</span></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
