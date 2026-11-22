@@ -217,8 +217,9 @@ app.post('/api/activities', requireUser, (req, res) => {
   if (!allowed.includes(category) || !Number.isFinite(quantity) || quantity < 0 || typeof unit !== 'string') {
     return res.status(400).json({ error: 'Provide a valid category, non-negative quantity, and unit.' });
   }
-  const rateByCategory = { ai: Number(process.env.AI_KWH_PER_QUERY || 0.002), cloud: factors.cloudKwhPerGbMonth,
-    transfer: Number(process.env.TRANSFER_KWH_PER_GB || 0.03), compute: Number(process.env.COMPUTE_KWH_PER_HOUR || 0.05) };
+  const rateByCategory = { ai: unit === 'hours' ? Number(process.env.AI_KWH_PER_HOUR || 0.04) : Number(process.env.AI_KWH_PER_QUERY || 0.002),
+    cloud: factors.cloudKwhPerGbMonth, transfer: Number(process.env.TRANSFER_KWH_PER_GB || 0.03),
+    compute: Number(process.env.COMPUTE_KWH_PER_HOUR || 0.05) };
   const energyKwh = quantity * rateByCategory[category];
   const co2Kg = energyKwh * factors.gridKgPerKwh;
   const id = crypto.randomUUID();
