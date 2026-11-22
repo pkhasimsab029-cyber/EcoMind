@@ -556,25 +556,25 @@ export const MachineLearningPage: React.FC = () => {
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                        MAE Score
+                        MAE validation
                       </span>
-                      <span className="text-lg font-black text-slate-800">0.42</span>
-                      <span className="text-[10px] text-slate-500 block">kg CO₂e error</span>
+                      <span className="text-lg font-black text-slate-800">—</span>
+                      <span className="text-[10px] text-slate-500 block">not evaluated</span>
                     </div>
 
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                        RMSE Score
+                        RMSE validation
                       </span>
-                      <span className="text-lg font-black text-slate-800">0.58</span>
-                      <span className="text-[10px] text-slate-500 block">std deviation</span>
+                      <span className="text-lg font-black text-slate-800">—</span>
+                      <span className="text-[10px] text-slate-500 block">not evaluated</span>
                     </div>
 
                     <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                       <span className="text-[10px] uppercase font-bold text-emerald-700 block">
-                        R² Score
+                        R² validation
                       </span>
-                      <span className="text-lg font-black text-emerald-800">0.94</span>
+                      <span className="text-lg font-black text-emerald-800">—</span>
                       <span className="text-[10px] text-emerald-600 block">94% fit</span>
                     </div>
                   </div>
