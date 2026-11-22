@@ -74,6 +74,7 @@ interface EcoContextType {
   activities: ActivityRecord[];
   addCurrentActivitiesAsRecords: () => void;
   deleteActivity: (id: string) => void;
+  deleteCollectedData: () => Promise<void>;
   resetToDefaults: () => void;
 
   // Aggregate Totals across all records
@@ -713,6 +714,16 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Activity record removed', 'info');
   };
 
+  const deleteCollectedData = async () => {
+    if (user?.id && !user.id.startsWith('user_')) {
+      const response = await fetch('/api/activities', { method: 'DELETE', credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Could not delete collected account data.');
+    }
+    setActivities([]);
+    if (user?.id) localStorage.setItem(`ecomind_activities_${user.id}`, JSON.stringify([]));
+    showToast('Collected activity data deleted.', 'info');
+  };
+
   const resetToDefaults = () => {
     setActivities(BENCHMARK_ACTIVITIES);
     showToast('Reset data to initial benchmark logs', 'info');
@@ -795,6 +806,7 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activities,
         addCurrentActivitiesAsRecords,
         deleteActivity,
+        deleteCollectedData,
         resetToDefaults,
         recordsTotals,
         recommendations,
