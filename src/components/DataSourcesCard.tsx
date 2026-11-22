@@ -40,7 +40,7 @@ export const DataSourcesCard: React.FC = () => {
             method: 'API measurement',
             energyKwh: Number(latest.energy_kwh),
             co2Kg: Number(latest.co2_kg),
-            note: 'Google reports account-wide storage quota. It may include Drive, Gmail, and Photos usage.'
+            note: 'Google Drive usage is measured separately. The reported limit is shared across Google services.'
           });
         }
       }
@@ -97,7 +97,7 @@ export const DataSourcesCard: React.FC = () => {
           <div>
             <h2 className="text-base font-bold text-slate-800">Data Sources</h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-slate-500">
-              Google sign-in and Google storage access are separate. Storage permission reads account-wide quota only; it does not read file contents.
+              Google sign-in and Google storage access are separate. Storage permission reads Drive usage and the shared storage limit; it does not read file contents.
             </p>
           </div>
         </div>
@@ -108,7 +108,7 @@ export const DataSourcesCard: React.FC = () => {
 
       {measurement && (
         <div className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 text-xs sm:grid-cols-3">
-          <div><span className="text-slate-500">Google account storage used</span><p className="mt-1 font-bold text-slate-800">{formatGb(measurement.usedBytes)} GB</p></div>
+          <div><span className="text-slate-500">Google Drive storage used</span><p className="mt-1 font-bold text-slate-800">{formatGb(measurement.usedBytes)} GB</p></div>
           <div><span className="text-slate-500">Estimated energy / CO₂</span><p className="mt-1 font-bold text-slate-800">{measurement.energyKwh.toFixed(3)} kWh · {measurement.co2Kg.toFixed(3)} kg</p></div>
           <div><span className="text-slate-500">Last synchronized</span><p className="mt-1 font-bold text-slate-800">{new Date(measurement.measuredAt).toLocaleString()}</p></div>
           <p className="text-slate-500 sm:col-span-3">{measurement.note}</p>
