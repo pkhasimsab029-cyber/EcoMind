@@ -661,6 +661,15 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ];
 
     setActivities((prev) => [...newItems, ...prev]);
+    // Store manual fallback records on the backend when this is a Google-authenticated account.
+    if (user?.id && !user.id.startsWith('user_')) {
+      void Promise.all(newItems.map((item) => fetch('/api/activities', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: item.type, quantity: item.quantity, unit: item.unit, source: 'manual' })
+      }))).catch(() => undefined);
+    }
     showToast('Activities saved successfully! Processing emissions data...', 'success');
     navigate('/processing');
   };
