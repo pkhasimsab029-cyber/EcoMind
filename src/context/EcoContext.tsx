@@ -381,9 +381,8 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return BENCHMARK_ACTIVITIES;
       }
     }
-    // Seed with benchmark activities for this new user so dashboard and charts are populated
-    localStorage.setItem(storageKey, JSON.stringify(BENCHMARK_ACTIVITIES));
-    return BENCHMARK_ACTIVITIES;
+    // New users start with an empty history; never present sample activity as measured data.
+    return [];
   };
 
   const [activities, setActivities] = useState<ActivityRecord[]>(() => getUserActivities(user?.id));
@@ -500,8 +499,8 @@ export const EcoProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUser(profile);
 
     // Initialize personal activities for this user
-    setActivities(BENCHMARK_ACTIVITIES);
-    localStorage.setItem(`ecomind_activities_${newUserId}`, JSON.stringify(BENCHMARK_ACTIVITIES));
+    setActivities([]);
+    localStorage.setItem(`ecomind_activities_${newUserId}`, JSON.stringify([]));
 
     showToast(`Welcome to EcoMind, ${cleanName}! Your account is ready.`, 'success');
     navigate('/dashboard');
