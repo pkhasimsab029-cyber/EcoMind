@@ -82,6 +82,25 @@ export const MachineLearningPage: React.FC = () => {
     { feature: 'GenAI Prompts & Tokens', weight: 12, color: '#8B5CF6' },
   ];
 
+  if (!hasEnoughHistory) {
+    return (
+      <AppLayout
+        title="Machine Learning Prediction"
+        subtitle="Forecasts use your recorded activity history"
+        step="Step 4"
+        actions={
+          <button onClick={() => navigate('/dashboard')} className="rounded-xl border border-emerald-200 bg-white px-3.5 py-2 text-xs font-semibold text-emerald-800">
+            Continue to Dashboard
+          </button>
+        }
+      >
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+          Forecasts are unavailable until at least six activity records span two or more months. Add real measurements to build your history.
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout
       title="Machine Learning Prediction"
@@ -97,11 +116,6 @@ export const MachineLearningPage: React.FC = () => {
         </button>
       }
     >
-      {!hasEnoughHistory && (
-        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Forecasts are unavailable until at least six activity records have been collected. Add real measurements to build your history.
-        </div>
-      )}
       <div className="space-y-6">
 
         {/* TABS NAVIGATION */}
@@ -310,18 +324,14 @@ export const MachineLearningPage: React.FC = () => {
                           }}
                         />
 
-                        {/* Cutoff Reference Line */}
-                        <ReferenceLine
-                          x="Oct (Now)"
-                          stroke="#E11D48"
-                          strokeDasharray="3 3"
-                          label={{
-                            value: 'Present Cutoff',
-                            fill: '#E11D48',
-                            fontSize: 10,
-                            position: 'top'
-                          }}
-                        />
+                        {/* Mark the last recorded month before the forecast begins. */}
+                        {(() => {
+                          const historyMonths = [...monthlyHistory.keys()].sort();
+                          const lastMonth = historyMonths[historyMonths.length - 1];
+                          if (!lastMonth) return null;
+                          const cutoff = new Date(`${lastMonth}-01T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+                          return <ReferenceLine x={cutoff} stroke="#E11D48" strokeDasharray="3 3" label={{ value: 'Present Cutoff', fill: '#E11D48', fontSize: 10, position: 'top' }} />;
+                        })()}
 
                         {/* Shaded Confidence Area */}
                         <Area
