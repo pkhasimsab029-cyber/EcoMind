@@ -116,7 +116,7 @@ app.get('/api/auth/callback', async (req, res, next) => {
   try {
     const { code, state, error } = req.query;
     const flow = req.session.oauthFlows?.[state];
-    if (!state || !flow || error) return res.redirect('/#/auth?google=denied');
+    if (!state || !flow || error) return res.redirect('/#/auth');
     delete req.session.oauthFlows[state];
     const oauth = oauthClient();
     const { tokens } = await oauth.getToken(code);
@@ -129,6 +129,7 @@ app.get('/api/auth/callback', async (req, res, next) => {
       db.prepare(`INSERT INTO users(id,email,name,avatar_url) VALUES(?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name,avatar_url=excluded.avatar_url,updated_at=CURRENT_TIMESTAMP`)
         .run(data.id, data.email, data.name || data.email, data.picture || null);
+      await new Promise((resolve, reject) => req.session.regenerate((err) => err ? reject(err) : resolve()));
       req.session.userId = data.id;
       req.session.user = { id: data.id, name: data.name || data.email, email: data.email, avatarUrl: data.picture || undefined };
       return req.session.save((err) => err ? next(err) : res.redirect('/#/dashboard'));
@@ -158,7 +159,9 @@ app.get('/api/google/drive/status', requireUser, (req, res) => {
   const token = db.prepare('SELECT 1 FROM google_tokens WHERE user_id=?').get(req.session.userId);
   const consent = db.prepare('SELECT status,updated_at FROM user_consent WHERE user_id=? AND feature=?')
     .get(req.session.userId, 'google_drive_storage');
-  res.json({ connected: Boolean(token), status: consent?.status || 'not_connected', lastSyncAt: null });
+  const lastSync = db.prepare('SELECT measured_at FROM storage_measurements WHERE user_id=? ORDER BY measured_at DESC LIMIT 1')
+    .get(req.session.userId);
+  res.json({ connected: Boolean(token), status: consent?.status || 'not_connected', lastSyncAt: lastSync?.measured_at || null });
 });
 app.post('/api/google/drive/sync', requireUser, async (req, res, next) => {
   try {
